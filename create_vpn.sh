@@ -14,21 +14,21 @@
 CONFIG_DIRECTORY="$HOME/Documents/no_backup/aws-pptp-cloudformation"
 REGION="us-east-1"
 
-#potentially make the directory, do a git pull if necessary
+#TODO: potentially make the directory, do a git pull if necessary
 
 # Stack name can include letters (A-Z and a-z), numbers (0-9), and dashes (-).
 CURRENT_DATE=$(date +%Y-%m-%d-%H-%M-%S)
 export STACK_NAME="pptp-vpn-$CURRENT_DATE"
 
-# make this an IF statement, bomb out if can't built it
+#TODO: make this an IF statement, bomb out if can't built it
 aws cloudformation create-stack --stack-name "$STACK_NAME" \
     --template-body file://$CONFIG_DIRECTORY/pptp-server.yaml \
     --parameters file://$CONFIG_DIRECTORY/pptp-server-params.json \
     --region "$REGION"
 
-# wait and poll until the stack is finished spinning up
 echo "Started stack deployment $STACK_NAME"
 
+# wait and poll until the stack is finished spinning up
 EXIT_STATUS="CREATE_COMPLETE"
 while true
 do
@@ -45,8 +45,8 @@ done
 STACK_IP=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" --query 'Stacks[0].Outputs[?OutputKey==`VPNServerAddress`].OutputValue' --output text)
 
 echo "Build finished, IP is $STACK_IP"
-# TCP ports
 
+# wait until the VPN port is open
 while true
 do
 	PORT_STATUS=$( nmap -Pn -p 1723 $STACK_IP | grep 1723 | cut -d' ' -f2 )
@@ -59,25 +59,21 @@ do
 	fi
 done
 
+echo "VPN is now ready for you to connect: $STACK_IP"
 
-
+#TODO: create/modify VPN connection on local system and connect to it.
 
 # get list of local OS X VPNs
 #scutil --nc list
 
-#scutil --nc start Foo --user bar --password baz --secret quux
-scutil --nc trigger "$STACK_IP" --user vpnuser --password C77qvgzjEQJQ8r7rtU --secret C77qvgzjEQJQ8r7rtU
+# in the future replace this with importing from JSON file
+#source vpn_creds.config
+
+#scutil --nc trigger "$STACK_IP" --user "$VPN_USERNAME" --password "$VPN_PASSWORD" --secret "$VPN_SECRET"
 # create route 53 entry for VPN
 
 # update local Mac config to use this address or just initiate it, maybe clear DNS cache
 #sudo killall -HUP mDNSResponder;say DNS cache has been flushed
 #sudo dscacheutil -flushcache
 
-# deletes all running stacks that this script creates
-#STACKS_RUNNING_LIST=$(aws cloudformation describe-stacks --output text | grep CREATE_COMPLETE | grep "pptp-vpn-" | cut -d$'\t' -f6)
-
-#for STACK_NAME_TO_TERMINATE in $STACKS_RUNNING_LIST
-#do
-#	echo "Deleting stack $STACK_NAME_TO_TERMINATE"
-#	aws cloudformation delete-stack --stack-name "$STACK_NAME_TO_TERMINATE"
-#done
+#TODO: Lambda function or other bash script to automatically terminate cloudformation template on disconnect or within 15 minutes of disconnect
