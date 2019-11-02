@@ -10,20 +10,62 @@
 #		https://s3.amazonaws.com/devopstar/resources/aws-pptp-cloudformation/pptp-server.yaml
 #
 ##############################################################################
+set -e
 
 CONFIG_DIRECTORY="$HOME/Documents/no_backup/aws-pptp-cloudformation"
 REGION="us-east-1"
-
-#TODO: potentially make the directory, do a git pull if necessary
+#TODO: potentially make the directory, do a git clone if necessary
 
 # Stack name can include letters (A-Z and a-z), numbers (0-9), and dashes (-).
 CURRENT_DATE=$(date +%Y-%m-%d-%H-%M-%S)
-export STACK_NAME="pptp-vpn-$CURRENT_DATE"
+STACK_NAME="pptp-vpn-$CURRENT_DATE"
+PARAMS_FILE="$CONFIG_DIRECTORY/pptp-server-params-$STACK_NAME.json"
+
+# Generate random username, password, passphrase
+randpw(){ openssl rand -base64 64 | tr -cd 'a-zA-Z1-9' | cut -c1-18; }
+
+# must start with letter
+VPN_USERNAME=$(randpw)
+VPN_PASSWORD=$(randpw)
+VPN_PHRASE=$(randpw)
+
+# output to a unique config file
+cat > $PARAMS_FILE <<- EOM
+[
+    {
+        "ParameterKey": "VPNUsername",
+        "ParameterValue": "$VPN_USERNAME"
+    },
+    {
+        "ParameterKey": "VPNPassword",
+        "ParameterValue": "$VPN_PASSWORD"
+    },
+    {
+        "ParameterKey": "VPNPhrase",
+        "ParameterValue": "$VPN_PHRASE"
+    },
+    {
+        "ParameterKey": "InstanceSize",
+        "ParameterValue": "Standard.VPN-t2.micro"
+    },
+    {
+        "ParameterKey": "DNSServerPrimary",
+        "ParameterValue": "1.1.1.1"
+    },
+    {
+        "ParameterKey": "DNSServerSecondary",
+        "ParameterValue": "1.0.0.1"
+    }
+]
+EOM
+
+# mark this file as read only by the current user, limit access to sensitive info
+chmod 400 "$PARAMS_FILE"
 
 #TODO: make this an IF statement, bomb out if can't built it
 aws cloudformation create-stack --stack-name "$STACK_NAME" \
     --template-body file://$CONFIG_DIRECTORY/pptp-server.yaml \
-    --parameters file://$CONFIG_DIRECTORY/pptp-server-params.json \
+    --parameters file://$PARAMS_FILE \
     --region "$REGION"
 
 echo "Started stack deployment $STACK_NAME"
@@ -34,10 +76,10 @@ while true
 do
 	STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" --output text | grep "$STACK_NAME" | awk -F\t '{print $NF}' )
 	if [ $STACK_STATUS == $EXIT_STATUS ]; then
-	  break;
+	   break;
 	else
 	   echo "waiting on stack to start... $STACK_STATUS"
-	   sleep 5
+	   sleep 7
 	fi
 done
 
@@ -55,13 +97,16 @@ do
 		break;
 	else
 	   echo "Waiting on port to open on IP... $PORT_STATUS"
-	   sleep 5
+	   sleep 10
 	fi
 done
 
-echo "VPN is now ready for you to connect: $STACK_IP"
-
-#TODO: create/modify VPN connection on local system and connect to it.
+echo "VPN is now ready for you to connect:
+IP:       $STACK_IP
+Username: $VPN_USERNAME
+Password: $VPN_PASSWORD
+Phrase:   $VPN_PHRASE
+"
 
 # get list of local OS X VPNs
 #scutil --nc list
