@@ -1,11 +1,12 @@
 #!/bin/bash
 ##############################################################################
 #		Written by Tim Honker
-#		Originally written 8/21/2019 late at night with a few glasses of wine
+#		Originally written 8/21/2019
 #
 #		Installs Apache and serves a webpage that describes
 #		EC2 instance information. For use with identifying servers
 #		behind load balancers
+#		Designed for use with Amazon Linux 2
 #		Intended to be a boot strap script for use in USER DATA
 #		for AWS EC2 instances.
 #
@@ -25,55 +26,76 @@
 #		https://www.thegeekstuff.com/2017/07/aws-ec2-cli-userdata/
 #
 ##############################################################################
+# Set up logging to external file
+LOGFILE="/root/bootstrap.log"
+NFS_HOST="172.30.0.48"	#us-east-1a EFS in master account
 
-yum update -y
+# redirect all output to a logfile
+exec >> "$LOGFILE"
+exec 2>&1
+
+#TODO: ensure this is the proper OS and aws packages are installed
+#TODO: add logic for checks to ensure this instance has role permissions
 
 # set the time zone as US EAST
 echo "ZONE=America/New_York
 UTC=true" > /etc/sysconfig/clock
 ln -sf /usr/share/zoneinfo/America/New_York /etc/localtime
 
-yum install httpd -y
+echo "Boot strap start: $(date)"
+
+# bail if any errors occur
+#set -e 
+
+# Install web server, start it, have it autostart on future boots
+yum install httpd -q -y
 service httpd start
 chkconfig httpd on
 
-rm -f /var/www/html/index.html
-
+# Fetch the current instance's region and Instance id.
 AWS_REGION=$(ec2-metadata --availability-zone | cut -d " " -f2 | sed 's/.$//')
 INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f2)
 
-# logic seems to be breaking things
-#if aws ec2 describe-tags --region $AWS_REGION --dry-run; then
-#	#this seems to come back blank for some reason, can't get it to error
-#    NAME_TAG="IAM Role not assigned, can't use aws command. Please grant this EC2 instance the ability to view tags"
-#    VPC_ID=$NAME_TAG
-#    SUBNET_ID=$NAME_TAG
-#else
+# Fetch information about this instance using the API. If the role isn't enabled, then these fields will be blank
+NAME_TAG=$(aws  ec2 describe-tags      --region $AWS_REGION --filters "Name=resource-id,Values=${INSTANCE_ID}" | grep -2 Name | grep Value | tr -d ' ' | cut -f2 -d: | tr -d '"' | tr -d ',')
+VPC_ID=$(aws    ec2 describe-instances --region $AWS_REGION --instance-ids $INSTANCE_ID --output text --query "Reservations[0].Instances[0].VpcId")
+SUBNET_ID=$(aws ec2 describe-instances --region $AWS_REGION --instance-ids $INSTANCE_ID --output text --query "Reservations[0].Instances[0].SubnetId")
 
-	NAME_TAG=$(aws ec2 describe-tags --region $AWS_REGION --filters "Name=resource-id,Values=${INSTANCE_ID}" | grep -2 Name | grep Value | tr -d ' ' | cut -f2 -d: | tr -d '"' | tr -d ','
-)
-	VPC_ID=$(aws ec2 describe-instances    --region $AWS_REGION --instance-ids $INSTANCE_ID --output text --query "Reservations[0].Instances[0].VpcId")
-	SUBNET_ID=$(aws ec2 describe-instances --region $AWS_REGION --instance-ids $INSTANCE_ID --output text --query "Reservations[0].Instances[0].SubnetId")
-#fi
+# log instances details for debug purposes
+aws ec2 describe-tags --region $AWS_REGION --filters "Name=resource-id,Values=${INSTANCE_ID}" 
 
-# I know there's a much easier way to dump all this into a text file, but I was lazy
-
-echo "<html><body><h1>Server Name Tag: $NAME_TAG </h1></p>" 		>  /var/www/html/index.html
-echo "Timestamp of when created: " $(date) "</p>"	>> /var/www/html/index.html
-echo "Region    : $AWS_REGION </p>"				    >> /var/www/html/index.html
-echo "VPC Id    : $VPC_ID </p>"						>> /var/www/html/index.html
-echo "Subnet Id : $SUBNET_ID </p>" 					>> /var/www/html/index.html
-echo $(ec2-metadata --local-hostname) 	 "</p>"		>> /var/www/html/index.html 
-echo $(ec2-metadata --local-ipv4) 		 "</p>"		>> /var/www/html/index.html 
-echo $(ec2-metadata --availability-zone) "</p>" 	>> /var/www/html/index.html 
-echo $(ec2-metadata --public-hostname)   "</p>"		>> /var/www/html/index.html 
-echo $(ec2-metadata --public-ipv4)   	 "</p>"		>> /var/www/html/index.html 
-echo $(ec2-metadata --security-groups)   "</p>"		>> /var/www/html/index.html 
-echo $(ec2-metadata --instance-id)       "</p>"		>> /var/www/html/index.html 
-echo $(ec2-metadata --instance-type)     "</p>"		>> /var/www/html/index.html 
-#echo "Uptime: " $(uptime)     	 		 "</p>"		>> /var/www/html/index.html 
-echo "</p></body></html>" >> /var/www/html/index.html
+# generate an HTML file that has relevant information about this instance
+# saves time from having to SSH in.
+echo "<html><body><h1>Server Name Tag: $NAME_TAG </h1></p>
+Timestamp of when created:  $(date) </p>
+Region    : $AWS_REGION </p>
+VPC Id    : $VPC_ID </p>
+Subnet Id : $SUBNET_ID</p>
+$(ec2-metadata --local-hostname) </p> 
+$(ec2-metadata --local-ipv4) </p> 
+$(ec2-metadata --availability-zone)	</p>
+$(ec2-metadata --public-hostname)  	</p> 
+$(ec2-metadata --public-ipv4)   </p> 
+$(ec2-metadata --security-groups)   </p>
+$(ec2-metadata --instance-id)       </p>
+$(ec2-metadata --instance-type)     </p>
+</p></body></html>" > /var/www/html/index.html
 
 # Install other things I might need
 # in Amazon Linux 2 by default: screen openssl tcpdump iostat md5sum netstat vim get
-yum install telnet nmap-ncat nmap -y 
+yum install telnet nmap-ncat nmap amazon-efs-utils -q -y
+
+# Save this Index.html file to a permanent location for record: EFS mount
+#TODO: make sure can ping/connect to NFS target first? Security groups might not allow inter-LAN traffic
+mkdir /efs
+mount -t nfs4  "$NFS_HOST:/" /efs
+mount | grep efs
+cp /var/www/html/index.html "/efs/$INSTANCE_ID.html"
+
+echo "Installing security updates..." 
+yum --security update -y -q
+
+echo "Bootstrap script complete: " $(date) 
+
+# Copy this log file off to permanent storage for record keeping
+cp "$LOGFILE" "/efs/$INSTANCE_ID.log"
