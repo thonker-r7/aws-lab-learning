@@ -9,14 +9,12 @@ set -e
 # move into root user's home directory
 cd $HOME || cd /root
 
+#TODO: use Curl instead of wget, avoid the logging CPU slowdown that wget seems to be causing
 apt-get update -q
 apt-get -y install wget
 
-# Download the installer for both InsightVM and Nexpose (same)
-wget https://download2.rapid7.com/download/InsightVM/Rapid7Setup-Linux64.bin
-
-# Download the MD5 hashsum file
-wget https://download2.rapid7.com/download/InsightVM/Rapid7Setup-Linux64.bin.md5sum
+# Download the installer for both InsightVM and Nexpose (same) and MD5 hashsum file
+wget https://download2.rapid7.com/download/InsightVM/Rapid7Setup-Linux64.bin https://download2.rapid7.com/download/InsightVM/Rapid7Setup-Linux64.bin.md5sum
 
 # Check the integrity of the download
 md5sum --check Rapid7Setup-Linux64.bin.md5sum
