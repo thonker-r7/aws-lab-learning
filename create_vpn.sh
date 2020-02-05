@@ -21,16 +21,16 @@ CURRENT_DATE=$(date +%Y-%m-%d-%H-%M-%S)
 STACK_NAME="pptp-vpn-$CURRENT_DATE"
 PARAMS_FILE="$CONFIG_DIRECTORY/pptp-server-params-$STACK_NAME.json"
 
-# Generate random username, password, passphrase
-randpw(){ openssl rand -base64 64 | tr -cd 'a-zA-Z1-9' | cut -c1-18; }
+# Generate random username, password, passphrase; avoid confusing characters
+randpw(){ openssl rand -base64 64 | tr -cd 'a-hj-km-zA-HJ-KM-Z2-9' | cut -c1-16; }
 
 # must start with letter
-VPN_USERNAME=$(randpw)
-VPN_PASSWORD=$(randpw)
-VPN_PHRASE=$(randpw)
+VPN_USERNAME=$(echo -n "u" && randpw)  #always must start with letter
+VPN_PASSWORD=$(echo -n "p" && randpw)
+VPN_PHRASE=$(echo -n "ph"  && randpw)
 
 # output to a unique config file
-cat > $PARAMS_FILE <<- EOM
+cat > "$PARAMS_FILE" <<- EOM
 [
     {
         "ParameterKey": "VPNUsername",
@@ -63,20 +63,25 @@ EOM
 chmod 400 "$PARAMS_FILE"
 
 #TODO: make this an IF statement, bomb out if can't built it
+# failed because my master account is ec2-classic and can't have a default VPC
 aws cloudformation create-stack --stack-name "$STACK_NAME" \
-    --template-body file://$CONFIG_DIRECTORY/pptp-server.yaml \
-    --parameters file://$PARAMS_FILE \
+    --template-body "file://$CONFIG_DIRECTORY/pptp-server.yaml" \
+    --parameters "file://$PARAMS_FILE" \
     --region "$REGION"
 
 echo "Started stack deployment $STACK_NAME"
 
 # wait and poll until the stack is finished spinning up
-EXIT_STATUS="CREATE_COMPLETE"
 while true
 do
 	STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" --output text | grep "$STACK_NAME" | awk -F\t '{print $NF}' )
-	if [ $STACK_STATUS == $EXIT_STATUS ]; then
-	   break;
+
+    if [ "$STACK_STATUS" == "CREATE_COMPLETE" ] ; then
+       break;
+    elif [ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]
+    then
+        echo "build failed, aborting: $STACK_STATUS"
+        exit
 	else
 	   echo "waiting on stack to start... $STACK_STATUS"
 	   sleep 7
@@ -91,9 +96,9 @@ echo "Build finished, IP is $STACK_IP"
 # wait until the VPN port is open
 while true
 do
-	PORT_STATUS=$( nmap -Pn -p 1723 $STACK_IP | grep 1723 | cut -d' ' -f2 )
-	if [ $PORT_STATUS == "open" ]; then
-		echo "Port is now open"
+	PORT_STATUS=$( nmap -Pn -p 1723 "$STACK_IP" | grep 1723 | cut -d' ' -f2 )
+
+	if [ "$PORT_STATUS" == "open" ]; then
 		break;
 	else
 	   echo "Waiting on port to open on IP... $PORT_STATUS"
@@ -115,7 +120,6 @@ Phrase:   $VPN_PHRASE
 #source vpn_creds.config
 
 #scutil --nc trigger "$STACK_IP" --user "$VPN_USERNAME" --password "$VPN_PASSWORD" --secret "$VPN_SECRET"
-# create route 53 entry for VPN
 
 # update local Mac config to use this address or just initiate it, maybe clear DNS cache
 #sudo killall -HUP mDNSResponder;say DNS cache has been flushed

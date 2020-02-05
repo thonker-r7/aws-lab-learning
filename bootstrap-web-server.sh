@@ -34,7 +34,7 @@ NFS_HOST="172.30.0.48"	#us-east-1a EFS in master account
 exec >> "$LOGFILE"
 exec 2>&1
 
-#TODO: ensure this is the proper OS and aws packages are installed
+#TODO: ensure this is the proper OS and aws packages are installed!!
 #TODO: add logic for checks to ensure this instance has role permissions
 
 # set the time zone as US EAST
@@ -57,12 +57,12 @@ AWS_REGION=$(ec2-metadata --availability-zone | cut -d " " -f2 | sed 's/.$//')
 INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f2)
 
 # Fetch information about this instance using the API. If the role isn't enabled, then these fields will be blank
-NAME_TAG=$(aws  ec2 describe-tags      --region $AWS_REGION --filters "Name=resource-id,Values=${INSTANCE_ID}" | grep -2 Name | grep Value | tr -d ' ' | cut -f2 -d: | tr -d '"' | tr -d ',')
-VPC_ID=$(aws    ec2 describe-instances --region $AWS_REGION --instance-ids $INSTANCE_ID --output text --query "Reservations[0].Instances[0].VpcId")
-SUBNET_ID=$(aws ec2 describe-instances --region $AWS_REGION --instance-ids $INSTANCE_ID --output text --query "Reservations[0].Instances[0].SubnetId")
+NAME_TAG=$(aws  ec2 describe-tags      --region "$AWS_REGION" --filters "Name=resource-id,Values=${INSTANCE_ID}" | grep -2 Name | grep Value | tr -d ' ' | cut -f2 -d: | tr -d '"' | tr -d ',')
+VPC_ID=$(aws    ec2 describe-instances --region "$AWS_REGION" --instance-ids "$INSTANCE_ID" --output text --query "Reservations[0].Instances[0].VpcId")
+SUBNET_ID=$(aws ec2 describe-instances --region "$AWS_REGION" --instance-ids "$INSTANCE_ID" --output text --query "Reservations[0].Instances[0].SubnetId")
 
 # log instances details for debug purposes
-aws ec2 describe-tags --region $AWS_REGION --filters "Name=resource-id,Values=${INSTANCE_ID}" 
+aws ec2 describe-tags --region "$AWS_REGION" --filters "Name=resource-id,Values=${INSTANCE_ID}" 
 
 # generate an HTML file that has relevant information about this instance
 # saves time from having to SSH in.
@@ -95,7 +95,7 @@ cp /var/www/html/index.html "/efs/$INSTANCE_ID.html"
 echo "Installing security updates..." 
 yum --security update -y -q
 
-echo "Bootstrap script complete: " $(date) 
+echo "Bootstrap script complete: $(date)"
 
 # Copy this log file off to permanent storage for record keeping
 cp "$LOGFILE" "/efs/$INSTANCE_ID.log"

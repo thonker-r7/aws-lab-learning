@@ -27,7 +27,7 @@
 ##############################################################################
 
 # change into current (root) user's home directory, different AMI's start in different places
-cd ~
+cd ~ || exit 1
 
 # Ubuntu version - install dependencies in vanilla Ubuntu 18.04
 sudo apt-get update
@@ -51,7 +51,7 @@ AWS_REGION=$(ec2metadata --availability-zone | cut -d " " -f2 | sed 's/.$//')
 INSTANCE_ID=$(ec2metadata --instance-id | cut -d " " -f2)
 
 # pull the list of tags and transform them into usable format
-TAGS_LIST=$(aws ec2 describe-tags --region $AWS_REGION --filters "Name=resource-id,Values=${INSTANCE_ID}" --output text | cut -d$'\t' -f2,5 | sed -e 's/\t/=/g' | sed -e ':a;N;$!ba;s/\n/,/g' )
+TAGS_LIST=$(aws ec2 describe-tags --region "$AWS_REGION" --filters "Name=resource-id,Values=${INSTANCE_ID}" --output text | cut -d$'\t' -f2,5 | sed -e 's/\t/=/g' | sed -e ':a;N;$!ba;s/\n/,/g' )
 
 # install with the listed tags as attributes
 sudo ./agent_installer.sh install_start --attributes "$TAGS_LIST"

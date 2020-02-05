@@ -2,7 +2,7 @@
 # Bootstrap script from ACloudGuru for installing wordpress
 yum update -y
 yum install httpd php php-mysql -y
-cd /var/www/html
+cd /var/www/html || exit 1
 echo "healthy" > healthy.html
 wget https://wordpress.org/wordpress-5.1.1.tar.gz
 tar -xzf wordpress-5.1.1.tar.gz

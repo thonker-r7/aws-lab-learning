@@ -28,12 +28,12 @@
 #whoami >> script.log
 
 # change into current (root) user's home directory, different AMI's start in different places
-cd ~
+cd ~ || exit 1
 
 # Ubuntu version - install dependencies in vanilla Ubuntu 18.04
-sudo apt-get update
-sudo apt-get -y upgrade
-sudo apt-get -y install python3-pip unzip awscli
+apt-get update
+apt-get -y upgrade
+apt-get -y install python3-pip unzip awscli
 pip3 install awscli --upgrade --user
 
 # copy the Linux installer from an S3 bucket
@@ -63,12 +63,12 @@ INSTANCE_ID=$(ec2metadata --instance-id | cut -d " " -f2)
 #aws ec2 describe-tags --region $AWS_REGION --filters "Name=resource-id,Values=${INSTANCE_ID}" --output text  >> script.log
 #might want to add use case where there are no tags
 
-TAGS_LIST=$(aws ec2 describe-tags --region $AWS_REGION --filters "Name=resource-id,Values=${INSTANCE_ID}" --output text | cut -d$'\t' -f2,5 | sed -e 's/\t/=/g' | sed -e ':a;N;$!ba;s/\n/,/g' )
+TAGS_LIST=$(aws ec2 describe-tags --region "$AWS_REGION" --filters "Name=resource-id,Values=${INSTANCE_ID}" --output text | cut -d$'\t' -f2,5 | sed -e 's/\t/=/g' | sed -e ':a;N;$!ba;s/\n/,/g' )
 
 # output the list of attributes that used with install
 #echo "Parsed attributes list: $TAGS_LIST" >> script.log
 
 # install with the listed tags as attributes
-sudo ./agent_installer.sh install_start --attributes "$TAGS_LIST" >> script.log  2>&1 
+./agent_installer.sh install_start --attributes "$TAGS_LIST" >> script.log  2>&1 
 
 #service ir_agent status >> script.log  2>&1 

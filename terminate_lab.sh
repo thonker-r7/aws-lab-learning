@@ -16,11 +16,11 @@
 #		https://stackoverflow.com/questions/23936216/how-can-i-get-list-of-only-running-instances-when-using-ec2-describe-tags
 ##############################################################################
 
-AWS_REGION="us-west-1"
+AWS_REGION="us-east-1"
 
 # get a list of instances that match a particular filter, even if terminated:
-LIST_OF_INSTANCE_IDS_TO_TERMINATE=$(aws ec2 describe-instances --region $AWS_REGION --filter Name=tag:GeneratedBy,Values=create_new_ec2_bootstrapped_server --query "Reservations[*].Instances[*].InstanceId" --output text)
-#echo $LIST_OF_INSTANCE_IDS_TO_TERMINATE
+# TODO: create list of only running ones
+LIST_OF_INSTANCE_IDS_TO_TERMINATE=$(aws ec2 describe-instances --region "$AWS_REGION" --filter Name=tag:GeneratedBy,Values=create_new_ec2_bootstrapped_server --query "Reservations[*].Instances[*].InstanceId" --output text)
 
 # terminate them in batch in a single region
-aws ec2 terminate-instances --region $AWS_REGION --instance-ids $LIST_OF_INSTANCE_IDS_TO_TERMINATE
+aws ec2 terminate-instances --region "$AWS_REGION" --instance-ids "$LIST_OF_INSTANCE_IDS_TO_TERMINATE"

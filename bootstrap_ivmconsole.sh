@@ -7,7 +7,7 @@
 set -e
 
 # move into root user's home directory
-cd $HOME || cd /root
+cd "$HOME" || cd /root
 
 #TODO: use Curl instead of wget, avoid the logging CPU slowdown that wget seems to be causing
 apt-get update -q
