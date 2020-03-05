@@ -14,6 +14,7 @@ apt-get update -q
 apt-get -y install wget
 
 # Download the installer for both InsightVM and Nexpose (same) and MD5 hashsum file
+# This makes sure you're getting the latest installer
 wget https://download2.rapid7.com/download/InsightVM/Rapid7Setup-Linux64.bin https://download2.rapid7.com/download/InsightVM/Rapid7Setup-Linux64.bin.md5sum
 
 # Check the integrity of the download
@@ -27,6 +28,12 @@ chmod u+x Rapid7Setup-Linux64.bin
 
 # start it up, not started by default
 systemctl start nexposeconsole.service
+
+# wait until the service finishes starting
+# usually 30 minutes on very first boot after install, depending on hardware specs
+
+# Can activate the license via RESTful API using the activateLicense method, which also supports offline file activation
+# https://help.rapid7.com/insightvm/en-us/api/index.html#operation/activateLicense
 
 # TODO: optionally disable database integrity checks before first launch to speed it up
 # TODO: install security updates before
